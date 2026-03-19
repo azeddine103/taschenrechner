@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ultra-Calc Pro v2.1</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --num: #334155;
+            --op: #0ea5e9;
+        }
+
+        body {
+            margin: 0; background: var(--bg); color: var(--text);
+            font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
+
+        /* Kurz-Verlauf Bereich */
+        .mini-history {
+            flex: 0 0 20%;
+            background: #00000030;
+            padding: 10px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            gap: 2px;
+            overflow-y: auto;
+        }
+
+        .hist-line {
+            font-size: 0.9rem;
+            color: #64748b;
+            text-align: right;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            white-space: nowrap;
+        }
+
+        .hist-line:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--accent);
+        }
+
+        .display-section {
+            flex: 0 0 12%;
+            padding: 0 20px 15px 20px;
+            text-align: right;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+        }
+
+        #main-line { 
+            font-size: 3rem; 
+            font-weight: 300; 
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        /* Keyboard */
+        .keypad {
+            flex: 1; display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 1px; background: #334155;
+        }
+
+        button {
+            border: none; background: var(--card); color: white;
+            font-size: 1.15rem; cursor: pointer;
+            transition: background 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:active { background: var(--num); filter: brightness(1.3); }
+        .btn-op { color: var(--accent); font-weight: bold; }
+        .btn-sci { background: #162031; color: #94a3b8; font-size: 0.9rem; }
+        .btn-equal { background: var(--op); font-weight: bold; }
+        .btn-ac { color: #ef4444; }
+
+    </style>
+</head>
+<body>
+
+    <div class="mini-history" id="mini-history"></div>
+
+    <div class="display-section">
+        <div id="main-line">0</div>
+    </div>
+
+    <div class="keypad">
+        <button class="btn-sci" onclick="func('Math.PI')">π</button>
+        <button class="btn-sci" onclick="func('Math.E')">e</button>
+        <button class="btn-sci" onclick="append('**')">xʸ</button>
+        <button class="btn-sci" onclick="func('Math.sqrt')">√</button>
+        <button class="btn-ac" onclick="clearAll()">AC</button>
+
+        <button class="btn-sci" onclick="func('Math.sin')">sin</button>
+        <button class="btn-sci" onclick="func('Math.cos')">cos</button>
+        <button class="btn-sci" onclick="append('(')">(</button>
+        <button class="btn-sci" onclick="append(')')">)</button>
+        <button class="btn-op" onclick="backspace()">⌫</button>
+
+        <button onclick="append('7')">7</button>
+        <button onclick="append('8')">8</button>
+        <button onclick="append('9')">9</button>
+        <button class="btn-op" onclick="append('/')">÷</button>
+        <button class="btn-sci" onclick="func('Math.log10')">log</button>
+
+        <button onclick="append('4')">4</button>
+        <button onclick="append('5')">5</button>
+        <button onclick="append('6')">6</button>
+        <button class="btn-op" onclick="append('*')">×</button>
+        <button class="btn-sci" onclick="func('Math.abs')">|x|</button>
+
+        <button onclick="append('1')">1</button>
+        <button onclick="append('2')">2</button>
+        <button onclick="append('3')">3</button>
+        <button class="btn-op" onclick="append('-')">−</button>
+        <button class="btn-equal" style="grid-row: span 2;" onclick="calculate()">=</button>
+
+        <button onclick="append('0')" style="grid-column: span 2;">0</button>
+        <button onclick="append('.')">.</button>
+        <button class="btn-op" onclick="append('+')">+</button>
+    </div>
+
+    <script>
+        const mainLine = document.getElementById('main-line');
+        const miniHistory = document.getElementById('mini-history');
+        let history = JSON.parse(localStorage.getItem('ultra_calc_v2_1')) || [];
+        let isResultDisplayed = false;
+
+        function append(val) {
+            if (isResultDisplayed) {
+                // Wenn Operator geklickt wird: Weiterrechnen mit Ergebnis
+                if (isNaN(val) && val !== '.') {
+                    isResultDisplayed = false;
+                } else {
+                    // Wenn Zahl geklickt wird: Neues Tippen starten
+                    mainLine.innerText = '0';
+                    isResultDisplayed = false;
+                }
+            }
+
+            if (mainLine.innerText === '0' && !isNaN(val)) {
+                mainLine.innerText = val;
+            } else {
+                mainLine.innerText += val;
+            }
+        }
+
+        function func(name) {
+            if (isResultDisplayed) {
+                mainLine.innerText = '0';
+                isResultDisplayed = false;
+            }
+            if (name.includes('Math.P') || name.includes('Math.E')) {
+                append(Math[name.split('.')[1]].toFixed(6));
+            } else {
+                mainLine.innerText = name + "(";
+            }
+        }
+
+        function calculate() {
+            try {
+                let expr = mainLine.innerText.replace('×', '*').replace('÷', '/').replace('−', '-');
+                let res = eval(expr);
+                
+                // Präzise Formatierung
+                let formattedRes = Number.isInteger(res) ? res : parseFloat(res.toFixed(8));
+                
+                saveHistory(mainLine.innerText, formattedRes);
+                mainLine.innerText = formattedRes;
+                isResultDisplayed = true;
+            } catch {
+                mainLine.innerText = "Error";
+                isResultDisplayed = true;
+            }
+        }
+
+        function saveHistory(expr, res) {
+            history.unshift({ expr, res });
+            if(history.length > 30) history.pop(); // Interner Speicher bis 30
+            localStorage.setItem('ultra_calc_v2_1', JSON.stringify(history));
+            updateMiniHistory();
+        }
+
+        function updateMiniHistory() {
+            miniHistory.innerHTML = '';
+            // Zeige die letzten 6 Einträge
+            const displayList = history.slice(0, 6).reverse();
+            displayList.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'hist-line';
+                div.innerText = `${item.expr} = ${item.res}`;
+                // Klick-Funktion: Ergebnis laden
+                div.onclick = () => {
+                    mainLine.innerText = item.res;
+                    isResultDisplayed = true;
+                };
+                miniHistory.appendChild(div);
+            });
+        }
+
+        function clearAll() { 
+            mainLine.innerText = '0'; 
+            isResultDisplayed = false;
+        }
+
+        function backspace() { 
+            if (isResultDisplayed) {
+                clearAll();
+            } else {
+                mainLine.innerText = mainLine.innerText.slice(0, -1) || '0'; 
+            }
+        }
+
+        // Tastatur-Support (Bonus für WebApp)
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '0' && e.key <= '9') append(e.key);
+            if (e.key === '+') append('+');
+            if (e.key === '-') append('-');
+            if (e.key === '*') append('*');
+            if (e.key === '/') append('/');
+            if (e.key === 'Enter') calculate();
+            if (e.key === 'Backspace') backspace();
+            if (e.key === 'Escape') clearAll();
+        });
+
+        // Initialer Aufruf
+        updateMiniHistory();
+    </script>
+</body>
+</html>
+
+
+
+
+<!--<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <title>Ultra-Calc Pro</title>
+    <link rel="manifest" href="manifest.json">
+	<link rel="icon" type="image/png" href="calculator.png">
+
+	<link rel="apple-touch-icon" href="calculator.png">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --num: #334155;
+            --op: #0ea5e9;
+            --sci-bg: #162031;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
+
+        /* Display Bereich */
+        .display-section {
+            flex: 0 0 25%;
+            display: flex; flex-direction: column;
+            justify-content: flex-end;
+            padding: 20px;
+            background: linear-gradient(to bottom, #0f172a, #1e293b);
+            text-align: right;
+        }
+
+        #upper-line { color: var(--accent); font-size: 1.1rem; min-height: 1.5rem; opacity: 0.7; }
+        #main-line { font-size: 3.5rem; font-weight: 300; white-space: nowrap; overflow-x: auto; }
+
+        /* Navigation für Funktionsgruppen */
+        .mode-selector {
+            display: flex; background: #000; padding: 5px; gap: 5px;
+        }
+        .mode-btn {
+            flex: 1; padding: 8px; font-size: 0.7rem; border: none;
+            background: transparent; color: #64748b; cursor: pointer;
+            text-transform: uppercase; border-radius: 4px;
+        }
+        .mode-btn.active { background: var(--num); color: var(--accent); }
+
+        /* Grid Layout */
+        .keypad {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1px;
+            background: #334155;
+        }
+
+        button {
+            border: none; background: var(--card); color: white;
+            font-size: 1.1rem; transition: 0.1s; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:active { filter: brightness(1.5); }
+
+        .btn-num { background: var(--card); }
+        .btn-op { color: var(--accent); font-weight: bold; }
+        .btn-sci { background: var(--sci-bg); color: #94a3b8; font-size: 0.9rem; }
+        .btn-mem { color: #facc15; font-size: 0.8rem; }
+        .btn-equal { background: var(--op); color: white; }
+        .btn-ac { color: #ef4444; }
+
+        /* Verlaufs-Overlay */
+        #history-panel {
+            position: fixed; bottom: 0; width: 100%; height: 70%;
+            background: var(--bg); transform: translateY(100%);
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100; border-radius: 20px 20px 0 0;
+            padding: 20px; box-sizing: border-box; box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+        }
+        #history-panel.open { transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+    <div class="display-section">
+        <div id="upper-line"></div>
+        <div id="main-line">0</div>
+    </div>
+
+    <div class="mode-selector">
+        <button class="mode-btn active">Standard</button>
+        <button class="mode-btn" onclick="toggleHistory()">Verlauf</button>
+        <button class="mode-btn" id="mem-indicator">M: 0</button>
+    </div>
+
+    <div class="keypad">
+        <button class="btn-sci" onclick="func('Math.PI')">π</button>
+        <button class="btn-sci" onclick="func('Math.E')">e</button>
+        <button class="btn-mem" onclick="mem('M+')">M+</button>
+        <button class="btn-mem" onclick="mem('MR')">MR</button>
+        <button class="btn-ac" onclick="clearAll()">AC</button>
+
+        <button class="btn-sci" onclick="func('Math.sin')">sin</button>
+        <button class="btn-sci" onclick="func('Math.cos')">cos</button>
+        <button class="btn-sci" onclick="func('Math.sqrt')">√</button>
+        <button class="btn-sci" onclick="append('**')">xʸ</button>
+        <button class="btn-op" onclick="backspace()">⌫</button>
+
+        <button class="btn-sci" onclick="func('Math.log10')">log</button>
+        <button class="btn-sci" onclick="func('Math.abs')">|x|</button>
+        <button class="btn-sci" onclick="append('(')">(</button>
+        <button class="btn-sci" onclick="append(')')">)</button>
+        <button class="btn-op" onclick="append('/')">÷</button>
+
+        <button class="btn-num" onclick="append('7')">7</button>
+        <button class="btn-num" onclick="append('8')">8</button>
+        <button class="btn-num" onclick="append('9')">9</button>
+        <button class="btn-op" onclick="append('*')">×</button>
+        <button class="btn-sci" onclick="func('Math.exp')">exp</button>
+
+        <button class="btn-num" onclick="append('4')">4</button>
+        <button class="btn-num" onclick="append('5')">5</button>
+        <button class="btn-num" onclick="append('6')">6</button>
+        <button class="btn-op" onclick="append('-')">−</button>
+        <button class="btn-sci" onclick="factorial()">x!</button>
+
+        <button class="btn-num" onclick="append('1')">1</button>
+        <button class="btn-num" onclick="append('2')">2</button>
+        <button class="btn-num" onclick="append('3')">3</button>
+        <button class="btn-op" onclick="append('+')">+</button>
+        <button class="btn-equal" style="grid-row: span 2;" onclick="calculate()">=</button>
+
+        <button class="btn-num" onclick="append('0')" style="grid-column: span 2;">0</button>
+        <button class="btn-num" onclick="append('.')">.</button>
+        <button class="btn-op" onclick="append('%')">mod</button>
+    </div>
+
+    <div id="history-panel">
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <h3>Verlauf</h3>
+            <button onclick="toggleHistory()" style="background:none; color:var(--accent);">Schließen</button>
+        </div>
+        <div id="history-list"></div>
+    </div>
+
+    <script>
+        const mainLine = document.getElementById('main-line');
+        const upperLine = document.getElementById('upper-line');
+        const memLabel = document.getElementById('mem-indicator');
+        let memory = 0;
+        let history = JSON.parse(localStorage.getItem('ultra_calc_hist')) || [];
+
+        function append(val) {
+            if (mainLine.innerText === '0' || mainLine.innerText === 'Error') mainLine.innerText = val;
+            else mainLine.innerText += val;
+        }
+
+        function func(mathName) {
+            if (mathName.includes('Math.')) {
+                if (mathName === 'Math.PI' || mathName === 'Math.E') {
+                    append(Math[mathName.split('.')[1]].toFixed(6));
+                } else {
+                    mainLine.innerText = mathName + "(" + (mainLine.innerText === '0' ? '' : mainLine.innerText) + ")";
+                }
+            }
+        }
+
+        function factorial() {
+            let n = parseInt(mainLine.innerText);
+            if (n < 0) return mainLine.innerText = "Error";
+            let res = 1;
+            for (let i = 2; i <= n; i++) res *= i;
+            updateDisplay(res, n + "!");
+        }
+
+        function mem(type) {
+            if (type === 'M+') {
+                memory += parseFloat(mainLine.innerText) || 0;
+                memLabel.innerText = "M: " + memory.toFixed(2);
+            } else if (type === 'MR') {
+                append(memory.toString());
+            }
+        }
+
+        function clearAll() { mainLine.innerText = '0'; upperLine.innerText = ''; }
+
+        function backspace() { 
+            mainLine.innerText = mainLine.innerText.slice(0, -1) || '0'; 
+        }
+
+        function calculate() {
+            try {
+                let rawExpr = mainLine.innerText.replace('×', '*').replace('÷', '/');
+                let result = eval(rawExpr);
+                updateDisplay(result, mainLine.innerText);
+            } catch {
+                mainLine.innerText = "Error";
+            }
+        }
+
+        function updateDisplay(res, expr) {
+            let formattedRes = Number.isFinite(res) ? (Number.isInteger(res) ? res : res.toFixed(6).replace(/\.?0+$/, "")) : "Error";
+            upperLine.innerText = expr + " =";
+            mainLine.innerText = formattedRes;
+            
+            history.unshift({ expr, res: formattedRes });
+            localStorage.setItem('ultra_calc_hist', JSON.stringify(history.slice(0, 20)));
+        }
+
+        function toggleHistory() {
+            const panel = document.getElementById('history-panel');
+            panel.classList.toggle('open');
+            const list = document.getElementById('history-list');
+            list.innerHTML = history.map(h => `
+                <div style="padding:10px; border-bottom:1px solid #334155;" onclick="loadHist('${h.res}')">
+                    <small style="color:var(--accent)">${h.expr}</small><br><strong>= ${h.res}</strong>
+                </div>
+            `).join('');
+        }
+
+        function loadHist(val) { mainLine.innerText = val; toggleHistory(); }
+
+        // Service Worker Reg
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(()=>{});
+        }
+    </script>
+</body>
+</html> -->
